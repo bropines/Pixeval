@@ -97,7 +97,6 @@ public sealed class DownloadListEntryViewModel : IllustrationItemViewModel
             {
                 LoadingThumbnail = true;
                 var s = await IoHelper.GetFileThumbnailAsync(path);
-                ThumbnailStream = s;
                 ThumbnailSourceRef = new SharedRef<SoftwareBitmapSource>(await s.GetSoftwareBitmapSourceAsync(false), key);
                 LoadingThumbnail = false;
                 return true;

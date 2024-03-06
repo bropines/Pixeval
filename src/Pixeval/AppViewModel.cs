@@ -34,6 +34,7 @@ using Pixeval.Logging;
 using Pixeval.Util.IO;
 using Pixeval.Util.UI;
 using Windows.Storage;
+using Pixeval.Misc;
 
 namespace Pixeval;
 
@@ -58,7 +59,7 @@ public class AppViewModel(App app)
 
     public AppSettings AppSettings { get; set; } = null!;
 
-    public FileCache Cache { get; private set; } = null!;
+    public CacheManager Cache { get; private set; } = null!;
 
     public long PixivUid => MakoClient.Session.Id;
 
@@ -91,8 +92,7 @@ public class AppViewModel(App app)
         _activatedByProtocol = activatedByProtocol;
 
         await AppKnownFolders.Temporary.ClearAsync();
-        Cache = await FileCache.CreateDefaultAsync();
-
+        Cache = new CacheManager();
         AppServiceProvider = CreateServiceProvider();
     }
 

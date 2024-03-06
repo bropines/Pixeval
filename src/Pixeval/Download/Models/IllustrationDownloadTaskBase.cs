@@ -28,6 +28,8 @@ using Pixeval.Database;
 using Pixeval.Util.IO;
 using Pixeval.Utilities;
 using Pixeval.Utilities.Threading;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp;
 
 namespace Pixeval.Download.Models;
 
@@ -98,7 +100,7 @@ public abstract class IllustrationDownloadTaskBase(DownloadHistoryEntry entry) :
         }
     }
 
-    public abstract Task DownloadAsync(Func<string, IProgress<double>?, CancellationHandle?, Task<Result<Stream>>> downloadStreamAsync);
+    public abstract Task DownloadAsync(Func<string, IProgress<double>?, CancellationHandle?, Task<Result<Image<Bgra32>>>> downloadImageAsync);
 
     public async Task ResetAsync()
     {

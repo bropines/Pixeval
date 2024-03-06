@@ -34,6 +34,7 @@ using Pixeval.Utilities;
 using WinUI3Utilities;
 using WinUI3Utilities.Attributes;
 using Windows.ApplicationModel;
+using Windows.Graphics.Imaging;
 using Microsoft.UI.Windowing;
 using Pixeval.CoreApi.Net;
 using Pixeval.Util.UI;
@@ -63,9 +64,9 @@ public static partial class AppInfo
 
     public static bool CustomizeTitleBarSupported => AppWindowTitleBar.IsCustomizationSupported();
 
-    private static readonly WeakReference<SoftwareBitmapSource?> _imageNotAvailable = new(null);
+    private static readonly WeakReference<SoftwareBitmapSource?> _imageNotAvailableSource = new(null);
 
-    private static readonly WeakReference<Stream?> _imageNotAvailableStream = new(null);
+    private static readonly WeakReference<SoftwareBitmap?> _imageNotAvailable = new(null);
 
     private static readonly WeakReference<SoftwareBitmapSource?> _pixivNoProfile = new(null);
 
@@ -104,17 +105,10 @@ public static partial class AppInfo
         return Path.Combine(Package.Current.InstalledPath, uri.Host, path);
     }
 
-    public static async Task<SoftwareBitmapSource> GetNotAvailableImageAsync()
+    public static async Task<SoftwareBitmap> GetNotAvailableImageAsync()
     {
         if (!_imageNotAvailable.TryGetTarget(out var target))
-            _imageNotAvailable.SetTarget(target = await GetNotAvailableImageStream().GetSoftwareBitmapSourceAsync(false));
-        return target;
-    }
-
-    public static Stream GetNotAvailableImageStream()
-    {
-        if (!_imageNotAvailableStream.TryGetTarget(out var target))
-            _imageNotAvailableStream.SetTarget(target = GetAssetStream("Images/image-not-available.png"));
+            _imageNotAvailable.SetTarget(target = await IoHelper.GetSoftwareBitmapFromStreamAsync(GetAssetStream("Images/image-not-available.png")));
         return target;
     }
 

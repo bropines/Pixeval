@@ -20,6 +20,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
@@ -41,6 +42,7 @@ using SixLabors.ImageSharp.Formats.Webp;
 using SixLabors.ImageSharp.PixelFormats;
 using WinUI3Utilities;
 using QRCoder;
+using SixLabors.ImageSharp.Metadata;
 
 namespace Pixeval.Util.IO;
 
@@ -90,6 +92,40 @@ public static partial class IoHelper
         // return await decoder.GetSoftwareBitmapAsync(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
     }
 
+    /// <summary>
+    /// Decodes the <paramref name="bytes" /> to a <see cref="SoftwareBitmap" />
+    /// </summary>
+    public static SoftwareBitmap CreateSoftwareBitmapFromBytes(byte[] bytes)
+    {
+        var image = Image.Identify(bytes);
+        var softwareBitmap = new SoftwareBitmap(BitmapPixelFormat.Bgra8, image.Width, image.Height, BitmapAlphaMode.Premultiplied);
+        softwareBitmap.CopyFromBuffer(bytes.AsBuffer());
+        return softwareBitmap;
+    }
+
+    public static SoftwareBitmap ToSoftwareBitmap(this Image<Bgra32> image)
+    {
+        var softwareBitmap = new SoftwareBitmap(BitmapPixelFormat.Bgra8, image.Width, image.Height, BitmapAlphaMode.Premultiplied);
+        var buffer = GC.AllocateUninitializedArray<byte>(image.Height * image.Width * 4);
+        image.CopyPixelDataTo(buffer);
+        softwareBitmap.CopyFromBuffer(buffer.AsBuffer());
+        return softwareBitmap;
+    }
+
+    public static byte[] ToBytes(this SoftwareBitmap bitmap)
+    {
+        var buffer = GC.AllocateUninitializedArray<byte>(bitmap.PixelWidth * bitmap.PixelHeight * 4);
+        bitmap.CopyToBuffer(buffer.AsBuffer());
+        return buffer;
+    }
+
+    public static async Task<SoftwareBitmapSource> ToSourceAsync(this SoftwareBitmap bitmap)
+    {
+        var source = new SoftwareBitmapSource();
+        await source.SetBitmapAsync(bitmap);
+        return source;
+    }
+
     public static async Task<Stream> GetFileThumbnailAsync(string path, uint size = 64)
     {
         var file = await StorageFile.GetFileFromPathAsync(path);
@@ -102,18 +138,6 @@ public static partial class IoHelper
         CreateParentDirectories(path);
         await using var fileStream = File.OpenWrite(path);
         _ = await UgoiraSaveToStreamAsync(image, fileStream, ugoiraDownloadFormat);
-    }
-
-    /// <summary>
-    /// Writes the frames that are contained in <paramref name="streams" /> into <see cref="Stream"/>
-    /// and encodes to <paramref name="ugoiraDownloadFormat"/> format
-    /// </summary>
-    public static async Task<Stream> UgoiraSaveToStreamAsync(this IEnumerable<Stream> streams, IEnumerable<int> delays, Stream? target = null, IProgress<int>? progress = null, UgoiraDownloadFormat? ugoiraDownloadFormat = null)
-    {
-        using var image = await streams.UgoiraSaveToImageAsync(delays, progress);
-        var s = await image.UgoiraSaveToStreamAsync(target ?? _recyclableMemoryStreamManager.GetStream());
-        progress?.Report(100);
-        return s;
     }
 
     public static async Task<T> UgoiraSaveToStreamAsync<T>(this Image image, T destination, UgoiraDownloadFormat? ugoiraDownloadFormat = null) where T : Stream
@@ -137,38 +161,30 @@ public static partial class IoHelper
         });
     }
 
-    public static async Task<Image> UgoiraSaveToImageAsync(this IEnumerable<Stream> streams, IEnumerable<int> delays, IProgress<int>? progress = null)
+    public static Image<Bgra32> ToImage(this SoftwareBitmap bitmap)
     {
-        return await Task.Run(async () =>
-        {
-            var s = streams as IList<Stream> ?? streams.ToArray();
-            var average = 50d / s.Count;
-            var d = delays as IList<int> ?? delays.ToArray();
-            var progressValue = 0d;
-
-            var images = new Image[s.Count];
-            await Parallel.ForAsync(0, s.Count, async (i, token) =>
-            {
-                var delay = d.Count > i ? (uint)d[i] : 10u;
-                s[i].Position = 0;
-                images[i] = await Image.LoadAsync(s[i], token);
-                images[i].Frames[0].Metadata.GetFormatMetadata(WebpFormat.Instance).FrameDelay = delay;
-                progressValue += average;
-                progress?.Report((int)progressValue);
-            });
-
-            var image = images[0];
-            foreach (var img in images.Skip(1))
-            {
-                using (img)
-                    _ = image.Frames.AddFrame(img.Frames[0]);
-                progressValue += average / 2;
-                progress?.Report((int)progressValue);
-            }
-
-            return image;
-        });
+        var buffer =
+            GC.AllocateUninitializedArray<byte>(bitmap.PixelHeight * bitmap.PixelWidth * 4);
+        bitmap.CopyToBuffer(buffer.AsBuffer());
+        return Image.LoadPixelData<Bgra32>(buffer, bitmap.PixelWidth, bitmap.PixelHeight);
     }
+
+    public static Image<Bgra32> ToUgoiraImage(this IEnumerable<SoftwareBitmap> bitmaps, IEnumerable<int> delays)
+    {
+        Image<Bgra32>? image = null;
+        foreach (var (bitmap, delay) in bitmaps.Zip(delays))
+        {
+            image ??= new Image<Bgra32>(bitmap.PixelWidth, bitmap.PixelHeight);
+            var image1 = bitmap.ToImage();
+            var frame = image1.Frames.RootFrame;
+            frame.Metadata.GetGifMetadata().FrameDelay = delay;
+            image.Frames.AddFrame(frame);
+        }
+        Debug.Assert(image is not null);
+        return image;
+    }
+
+
 
     public static async Task IllustrationSaveToFileAsync(this Image image, string path, IllustrationDownloadFormat? illustrationDownloadFormat = null)
     {
@@ -228,8 +244,8 @@ public static partial class IoHelper
 
     public static async Task<Image> GetImageFromZipStreamAsync(Stream zipStream, UgoiraMetadataResponse ugoiraMetadataResponse)
     {
-        var entryStreams = await ReadZipArchiveEntries(zipStream);
-        return await entryStreams.UgoiraSaveToImageAsync(ugoiraMetadataResponse.UgoiraMetadataInfo.Frames.Select(t => (int)t.Delay));
+        var bitmaps = await ReadSoftwareBitmapFromZipArchiveAsync(zipStream).ToArrayAsync();
+        return bitmaps.ToUgoiraImage(ugoiraMetadataResponse.UgoiraMetadataInfo.Frames.Select(t => (int)t.Delay));
     }
 
     public static async Task<SoftwareBitmapSource> GenerateQrCodeForUrlAsync(string url)

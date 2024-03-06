@@ -116,7 +116,7 @@ public partial class IllustratorViewerPageViewModel : UiObservableObject
             var result2 = await App.AppViewModel.MakoClient.DownloadBitmapImageAsync(BackgroundUrl);
             BackgroundSource = result2 is Result<ImageSource>.Success { Value: var background }
                 ? background
-                : await AppInfo.GetNotAvailableImageAsync();
+                : await (await AppInfo.GetNotAvailableImageAsync()).ToSourceAsync();
         }
         else
         {

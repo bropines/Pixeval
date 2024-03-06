@@ -25,6 +25,8 @@ using Pixeval.CoreApi.Net.Response;
 using Pixeval.Database;
 using Pixeval.Util;
 using Pixeval.Util.IO;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace Pixeval.Download.Models;
 
@@ -36,9 +38,9 @@ public class UgoiraDownloadTask(
 {
     protected UgoiraMetadataResponse Metadata { get; set; } = metadata;
 
-    protected override async Task ManageStream(Stream stream, string destination)
+    protected override async Task SaveImageAsync(Image<Bgra32> image, string destination)
     {
-        using var image = await IoHelper.GetImageFromZipStreamAsync(stream, Metadata);
+        using var image = await IoHelper.GetImageFromZipStreamAsync(image, Metadata);
         image.SetTags(IllustrationViewModel.Illustrate);
         await image.UgoiraSaveToFileAsync(destination);
     }

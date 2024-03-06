@@ -110,12 +110,10 @@ public partial class ZoomableImage
                 if (Sources is null)
                     return;
                 foreach (var source in Sources)
-                    if (source is { CanRead: true })
-                    {
-                        var randomAccessStream = source.AsRandomAccessStream();
-                        randomAccessStream.Seek(0);
-                        _frames.Add(await CanvasBitmap.LoadAsync(sender, randomAccessStream));
-                    }
+                {
+                    _frames.Add(CanvasBitmap.CreateFromSoftwareBitmap(sender, source));
+                }
+
             }
             catch (Exception)
             {

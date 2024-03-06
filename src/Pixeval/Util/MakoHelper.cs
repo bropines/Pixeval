@@ -84,9 +84,9 @@ public static class MakoHelper
         return new Uri($"{AppInfo.AppProtocol}://user/{id}");
     }
 
-    public static async Task<string> GetIllustrationThumbnailCacheKeyAsync(this IllustrationItemViewModel illustration, ThumbnailUrlOption thumbnailUrlOption = ThumbnailUrlOption.Medium)
+    public static async Task<string> GetIllustrationThumbnailCacheKeyAsync(this IllustrationItemViewModel illustration)
     {
-        return $"thumbnail-{thumbnailUrlOption}-{await illustration.GetOriginalSourceUrlAsync()}";
+        return $"thumbnail-{await illustration.GetOriginalSourceUrlAsync()}";
     }
 
     public static async Task<string> GetIllustrationOriginalImageCacheKeyAsync(this IllustrationItemViewModel illustration)

@@ -22,12 +22,14 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using Pixeval.Controls;
+using Pixeval.CoreApi.Net.Response;
 using Pixeval.Database;
 using Pixeval.Util;
 using Pixeval.Util.IO;
 using Pixeval.Utilities;
 using Pixeval.Utilities.Threading;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace Pixeval.Download.Models;
 
@@ -38,39 +40,32 @@ public class IllustrationDownloadTask(DownloadHistoryEntry entry, IllustrationIt
 
     public IllustrationItemViewModel IllustrationViewModel { get; protected set; } = illustration;
 
-    public override async Task DownloadAsync(Func<string, IProgress<double>?, CancellationHandle?, Task<Result<Stream>>> downloadStreamAsync)
+    public override async Task DownloadAsync(Func<string, IProgress<double>?, CancellationHandle?, Task<Result<Image<Bgra32>>>> downloadImageAsync)
     {
-        await DownloadAsyncCore(downloadStreamAsync, Url, Destination);
+        await DownloadAsyncCore(downloadImageAsync, Url, Destination);
     }
 
-    protected virtual async Task DownloadAsyncCore(Func<string, IProgress<double>?, CancellationHandle?, Task<Result<Stream>>> downloadStreamAsync, string url, string destination)
+    protected virtual async Task DownloadAsyncCore(Func<string, IProgress<double>?, CancellationHandle?, Task<Result<Image<Bgra32>>>> downloadImageAsync, string url, string destination)
     {
         if (!App.AppViewModel.AppSettings.OverwriteDownloadedFile && File.Exists(destination))
             return;
 
-        if (App.AppViewModel.AppSettings.UseFileCache && await App.AppViewModel.Cache.TryGetAsync<Stream>(await IllustrationViewModel.GetIllustrationOriginalImageCacheKeyAsync()) is { } stream)
+        if (App.AppViewModel.AppSettings.UseFileCache && App.AppViewModel.Cache.TryGet(await IllustrationViewModel.GetIllustrationOriginalImageCacheKeyAsync(), out var image))
         {
-            await using (stream)
-                await ManageStream(stream, destination);
+
+            await SaveImageAsync(image, destination);
             return;
         }
 
-        if (await downloadStreamAsync(url, this, CancellationHandle) is Result<Stream>.Success result)
+        if (await downloadImageAsync(url, this, CancellationHandle) is Result<Image<Bgra32>>.Success result)
         {
-            await using var ras = result.Value;
-            await ManageStream(ras, destination);
+            using var image1 = result.Value;
+            await SaveImageAsync(image1, destination);
         }
     }
 
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="stream">会自动Dispose</param>
-    /// <param name="destination"></param>
-    /// <returns></returns>
-    protected virtual async Task ManageStream(Stream stream, string destination)
+    protected virtual async Task SaveImageAsync(Image<Bgra32> image, string destination)
     {
-        using var image = await Image.LoadAsync(stream);
         image.SetTags(IllustrationViewModel.Illustrate);
         await image.IllustrationSaveToFileAsync(destination);
     }

@@ -28,11 +28,31 @@ using Pixeval.CoreApi;
 using Pixeval.CoreApi.Net;
 using Pixeval.Utilities;
 using Pixeval.Utilities.Threading;
+using System.Security.Cryptography;
 
 namespace Pixeval.Util.IO;
 
 public static partial class IoHelper
 {
+
+    public static async Task<Result<byte[]>> DownloadBytesAsync(
+        this MakoClient client,
+        string url,
+        IProgress<double>? progress = null,
+        CancellationHandle? cancellationHandle = null)
+    {
+        var res = await client.GetMakoHttpClient(MakoApiKind.ImageApi)
+            .DownloadStreamAsync(url, progress, cancellationHandle);
+        switch (res)
+        {
+            case Result<Stream>.Success(var s):
+                var buffer = GC.AllocateUninitializedArray<byte>((int)s.Length);
+                await s.WriteAsync(buffer);
+                return Result<byte[]>.AsSuccess(buffer);
+            default:
+                return Result<byte[]>.AsFailure();
+        }
+    }
     public static async Task<Result<Stream>> DownloadStreamAsync(
         this MakoClient client,
         string url,

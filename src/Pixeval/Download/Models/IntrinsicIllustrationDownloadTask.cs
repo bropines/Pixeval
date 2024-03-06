@@ -25,6 +25,8 @@ using Pixeval.Controls;
 using Pixeval.Database;
 using Pixeval.Utilities;
 using Pixeval.Utilities.Threading;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
 
 namespace Pixeval.Download.Models;
 
@@ -41,13 +43,13 @@ public class IntrinsicIllustrationDownloadTask : IllustrationDownloadTask
 
     public Stream Stream { get; }
 
-    protected override async Task DownloadAsyncCore(Func<string, IProgress<double>?, CancellationHandle?, Task<Result<Stream>>> _, string url, string destination)
+    protected override async Task DownloadAsyncCore(Func<string, IProgress<double>?, CancellationHandle?, Task<Result<Image<Bgra32>>>> _, string url, string destination)
     {
         if (!App.AppViewModel.AppSettings.OverwriteDownloadedFile && File.Exists(destination))
             return;
 
         Stream.Position = 0;
 
-        await ManageStream(Stream, destination);
+        await SaveImageAsync(Stream, destination);
     }
 }

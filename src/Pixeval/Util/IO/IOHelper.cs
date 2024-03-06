@@ -31,6 +31,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using Windows.Foundation;
+using Windows.Graphics.Imaging;
 using Windows.Security.Cryptography;
 using Windows.Storage;
 using Windows.Storage.Streams;
@@ -168,22 +169,15 @@ public static partial class IoHelper
         return httpClient.SendAsync(httpRequestMessage);
     }
 
-    public static async Task<MemoryStream[]> ReadZipArchiveEntries(Stream zipStream)
+    public static async IAsyncEnumerable<SoftwareBitmap> ReadSoftwareBitmapFromZipArchiveAsync(Stream zipStream)
     {
         using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read);
-        // return the result of Select directly will cause the enumeration to be delayed
-        // which will lead the program into ObjectDisposedException since the archive object
-        // will be disposed after the execution of ReadZipArchiveEntries
-        // So we must consume the archive.Entries.Select right here, prevent it from escaping
-        // to the outside of the stackframe
-        return await Task.WhenAll(archive.Entries.Select(async entry =>
+        foreach (var zipArchiveEntry in archive.Entries)
         {
-            await using var stream = entry.Open();
-            var ms = _recyclableMemoryStreamManager.GetStream();
-            await stream.CopyToAsync(ms);
-            ms.Position = 0;
-            return ms;
-        }));
+            await using var stream = zipArchiveEntry.Open();
+            var bytes = GC.AllocateUninitializedArray<byte>((int)stream.Length);
+            yield return CreateSoftwareBitmapFromBytes(bytes);
+        }
     }
 
     public static async Task SaveToFileAsync(this IRandomAccessStream stream, StorageFile file)

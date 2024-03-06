@@ -22,10 +22,12 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using Windows.Graphics.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media.Imaging;
 using WinUI3Utilities.Attributes;
 
 namespace Pixeval.Controls;
@@ -35,8 +37,8 @@ namespace Pixeval.Controls;
 /// 渲染：<see cref="CanvasControlOnDraw"/>，图片渲染逻辑<br/>
 /// 对外API：<see cref="Zoom(float)"/>、<see cref="SetPosition"/>
 /// </summary>
-[DependencyProperty<IReadOnlyList<Stream>>("Sources", DependencyPropertyDefaultValue.Default, nameof(OnSourcesChanged), IsNullable = true)]
-[DependencyProperty<IReadOnlyList<int>>("MsIntervals", DependencyPropertyDefaultValue.Default, nameof(OnMsIntervalsChanged))]
+[DependencyProperty<List<SoftwareBitmap>>("Sources", DependencyPropertyDefaultValue.Default, nameof(OnSourcesChanged), IsNullable = true)]
+[DependencyProperty<List<int>>("MsIntervals", DependencyPropertyDefaultValue.Default, nameof(OnMsIntervalsChanged))]
 [DependencyProperty<bool>("IsPlaying", "true", nameof(OnIsPlayingChanged))]
 [DependencyProperty<int>("ImageRotationDegree", "0", nameof(OnImageRotationDegreeChanged))]
 [DependencyProperty<bool>("ImageIsMirrored", "false")]

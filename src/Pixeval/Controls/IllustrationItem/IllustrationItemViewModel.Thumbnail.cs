@@ -23,6 +23,7 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using Windows.Graphics.Imaging;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Pixeval.AppManagement;
 using Pixeval.Util;
@@ -42,7 +43,7 @@ public partial class IllustrationItemViewModel
     /// <summary>
     /// 缩略图文件流
     /// </summary>
-    public Stream? ThumbnailStream { get; set; }
+    public SoftwareBitmap? Thumbnail { get; set; }
 
     private SharedRef<SoftwareBitmapSource>? _thumbnailSourceRef;
 
@@ -87,10 +88,9 @@ public partial class IllustrationItemViewModel
         }
 
         LoadingThumbnail = true;
-        if (App.AppViewModel.AppSettings.UseFileCache && await App.AppViewModel.Cache.TryGetAsync<Stream>(await this.GetIllustrationThumbnailCacheKeyAsync()) is { } stream)
+        if (App.AppViewModel.AppSettings.UseFileCache && App.AppViewModel.Cache.TryGet(await this.GetIllustrationThumbnailCacheKeyAsync(), out var image))
         {
-            ThumbnailStream = stream;
-            ThumbnailSourceRef = new SharedRef<SoftwareBitmapSource>(await stream.GetSoftwareBitmapSourceAsync(false), key);
+            ThumbnailSourceRef = new SharedRef<SoftwareBitmapSource>(await image.ToSoftwareBitmap().ToSourceAsync(), key);
 
             // 读取缓存并加载完成
             LoadingThumbnail = false;
@@ -102,10 +102,9 @@ public partial class IllustrationItemViewModel
         {
             if (App.AppViewModel.AppSettings.UseFileCache)
             {
-                _ = await App.AppViewModel.Cache.TryAddAsync(await this.GetIllustrationThumbnailCacheKeyAsync(), s, TimeSpan.FromDays(1));
+                App.AppViewModel.Cache.Add(await this.GetIllustrationThumbnailCacheKeyAsync(), s.ToImage(), TimeSpan.FromDays(10));
             }
-            ThumbnailStream = s;
-            ThumbnailSourceRef = new SharedRef<SoftwareBitmapSource>(await s.GetSoftwareBitmapSourceAsync(false), key);
+            ThumbnailSourceRef = new SharedRef<SoftwareBitmapSource>(await s.ToSourceAsync(), key);
 
             // 获取并加载完成
             LoadingThumbnail = false;
@@ -136,27 +135,27 @@ public partial class IllustrationItemViewModel
             return;
 
         ThumbnailSourceRef = null;
-        ThumbnailStream?.Dispose();
     }
 
     /// <summary>
     /// 直接获取对应缩略图
     /// </summary>
-    public async Task<Stream?> GetThumbnailAsync()
+    public async Task<SoftwareBitmap?> GetThumbnailAsync()
     {
+
         if (Illustrate.GetThumbnailUrl() is { } url)
         {
             switch (await App.AppViewModel.MakoClient.DownloadStreamAsync(url, cancellationHandle: LoadingThumbnailCancellationHandle))
             {
                 case Result<Stream>.Success(var stream):
-                    return stream;
+                    return await IoHelper.GetSoftwareBitmapFromStreamAsync(stream);
                 case Result<Stream>.Failure(OperationCanceledException):
                     LoadingThumbnailCancellationHandle.Reset();
                     return null;
             }
         }
 
-        return AppInfo.GetNotAvailableImageStream();
+        return await AppInfo.GetNotAvailableImageAsync();
     }
 
     /// <summary>
@@ -165,7 +164,6 @@ public partial class IllustrationItemViewModel
     private void DisposeInternal()
     {
         ThumbnailSourceRef?.DisposeForce();
-        ThumbnailStream?.Dispose();
     }
 
     public override void Dispose()
